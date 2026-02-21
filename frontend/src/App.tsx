@@ -1,137 +1,95 @@
-import { useEffect, useState, lazy } from "react";
-import { Header, Container } from "./components/Layout";
-import { Button, Card, ErrorBoundary } from "./components/UI";
-import {
-  PWAInstallButton,
-  PWAUpdateNotification,
-  PWAConnectionStatus,
-} from "./components/PWA";
-import { TokenDeployForm } from "./components/TokenDeployForm";
-import {
-  TutorialOverlay,
-  CompletionCelebration,
-  TutorialSettings,
-  useTutorial,
-  deploymentTutorialSteps,
-} from "./components/Tutorial";
-import { WalletInfo, NetworkToggle } from "./components/WalletConnect";
-import { useWallet } from "./hooks/useWallet";
+import { useEffect, useMemo, useState } from "react";
+import LandingPage from "./pages/LandingPage";
+import DeployPage from "./pages/DeployPage";
+import NotFoundRoute from "./routes/NotFoundRoute";
 import { useNetwork } from "./hooks/useNetwork";
+import { useWallet } from "./hooks/useWallet";
+
+function normalizePath(pathname: string): string {
+  if (pathname.length > 1 && pathname.endsWith("/")) {
+    return pathname.slice(0, -1);
+  }
+  return pathname || "/";
+}
 
 function App() {
+  const [pathname, setPathname] = useState(() => normalizePath(window.location.pathname));
   const { network, setNetwork } = useNetwork();
   const { wallet, connect, disconnect, isConnecting, error } = useWallet({ network });
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
-  const tutorial = useTutorial(deploymentTutorialSteps);
-
-  const handleTutorialComplete = () => {
-    tutorial.complete();
-    setShowCelebration(true);
-  };
-
-  const handleCelebrationClose = () => {
-    setShowCelebration(false);
-  };
 
   useEffect(() => {
-    // Auto-start tutorial for first-time users
-    if (!tutorial.hasCompletedBefore) {
-      const timer = setTimeout(() => {
-        tutorial.start();
-      }, 1000);
-      return () => clearTimeout(timer);
+    const handlePopState = () => {
+      setPathname(normalizePath(window.location.pathname));
+    };
+
+    const handleInternalNavigation = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest("a[href]") as HTMLAnchorElement | null;
+
+      if (!anchor) {
+        return;
+      }
+
+      if (anchor.target && anchor.target !== "_self") {
+        return;
+      }
+
+      const href = anchor.getAttribute("href");
+      if (!href || href.startsWith("#")) {
+        return;
+      }
+
+      const url = new URL(anchor.href);
+      if (url.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const nextPath = normalizePath(url.pathname);
+      if (nextPath !== pathname) {
+        window.history.pushState(null, "", `${nextPath}${url.search}${url.hash}`);
+        setPathname(nextPath);
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    document.addEventListener("click", handleInternalNavigation);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      document.removeEventListener("click", handleInternalNavigation);
+    };
+  }, [pathname]);
+
+  const page = useMemo(() => {
+    if (pathname === "/") {
+      return <LandingPage />;
     }
-  }, [tutorial.hasCompletedBefore]);
 
-  return (
-    <ErrorBoundary>
-      <a href="#main-content" className="skip-to-main">
-        Skip to main content
-      </a>
-      <div className="min-h-screen bg-gray-50">
-        <Header>
-          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-4">
-            <PWAConnectionStatus />
-            <PWAInstallButton />
-            {!tutorial.hasCompletedBefore && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={tutorial.start}
-                data-tutorial="restart-tutorial"
-              >
-                Start Tutorial
-              </Button>
-            )}
-            {tutorial.hasCompletedBefore && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowSettings(true)}
-                title="Tutorial settings"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-              </Button>
-            )}
-            <NetworkToggle network={network} onNetworkChange={setNetwork} />
-            {wallet.connected && wallet.address ? (
-              <WalletInfo
-                wallet={wallet}
-                onDisconnect={disconnect}
-                data-tutorial="connect-wallet"
-              />
-            ) : (
-              <Button
-                size="sm"
-                onClick={() => void connect()}
-                loading={isConnecting}
-                data-tutorial="connect-wallet"
-              >
-                Connect Wallet
-              </Button>
-            )}
-          </div>
-        </Header>
-        <main id="main-content">
-          <Container>
-            <Card title="Deploy Your Token">
-              {error ? (
-                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {error}
-                </div>
-              ) : null}
-              <TokenDeployForm
-                wallet={wallet}
-                onConnectWallet={connect}
-                isConnectingWallet={isConnecting}
-              />
-            </Card>
-          </Container>
-        </main>
-        <PWAUpdateNotification />
+    if (pathname === "/deploy") {
+      return (
+        <DeployPage
+          network={network}
+          setNetwork={setNetwork}
+          wallet={wallet}
+          connect={connect}
+          disconnect={disconnect}
+          isConnecting={isConnecting}
+          error={error}
+        />
+      );
+    }
 
-        {/* Tutorial System */}
-        <TutorialOverlay
-          steps={deploymentTutorialSteps}
-          currentStep={tutorial.currentStep}
-          onNext={tutorial.next}
-          onPrevious={tutorial.previous}
-          onSkip={tutorial.skip}
-          onComplete={handleTutorialComplete}
-          isActive={tutorial.isActive}
-        />
-        <CompletionCelebration isOpen={showCelebration} onClose={handleCelebrationClose} />
-        <TutorialSettings
-          isOpen={showSettings}
-          onClose={() => setShowSettings(false)}
-          onResetTutorial={tutorial.reset}
-        />
-      </div>
-    </ErrorBoundary>
-  );
+    return <NotFoundRoute />;
+  }, [pathname, network, setNetwork, wallet, connect, disconnect, isConnecting, error]);
+
+  return page;
 }
 
 export default App;
