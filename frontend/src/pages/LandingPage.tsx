@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef } from "react";
-import { FAQ, Features, Footer, Hero, HowItWorks } from "../components/landing";
-import { LANDING_SCROLL_ORDER } from "../components/landing/sectionIds";
-import {
-  PWAInstallButton,
-  PWAConnectionStatus,
-} from "../components/PWA";
-import { NetworkToggle, WalletInfo } from "../components/WalletConnect";
+import { Hero } from "../components/landing";
+import { LANDING_SECTION_IDS } from "../components/landing/sectionIds";
+import { WalletInfo } from "../components/WalletConnect";
 import { Button } from "../components/UI";
+import { useToast } from "../hooks/useToast";
 import type { WalletState } from "../types";
 
 const SCROLL_DURATION_MS = 700;
+const ACTIVE_LANDING_SECTIONS = [
+  LANDING_SECTION_IDS.hero,
+] as const;
 
 interface LandingPageProps {
   network: "testnet" | "mainnet";
@@ -35,6 +35,24 @@ export default function LandingPage({
   isConnecting,
 }: LandingPageProps) {
   const animationRef = useRef<number | null>(null);
+  const { error: showError } = useToast();
+
+  const handleConnect = useCallback(async () => {
+    try {
+      await connect();
+    } catch (err: any) {
+      if (err.message?.includes('not installed')) {
+        showError(
+          'Freighter wallet is not installed. Please install the Freighter extension from the Chrome Web Store.',
+          { duration: 7000 }
+        );
+        // Open Freighter installation page
+        window.open('https://www.freighter.app/', '_blank');
+      } else {
+        showError(err.message || 'Failed to connect wallet. Please try again.');
+      }
+    }
+  }, [connect, showError]);
 
   const stopCurrentScroll = useCallback(() => {
     if (animationRef.current !== null) {
@@ -107,7 +125,7 @@ export default function LandingPage({
 
   useEffect(() => {
     const initialHash = window.location.hash.replace("#", "");
-    if (initialHash && LANDING_SCROLL_ORDER.includes(initialHash as (typeof LANDING_SCROLL_ORDER)[number])) {
+    if (initialHash && ACTIVE_LANDING_SECTIONS.includes(initialHash as (typeof ACTIVE_LANDING_SECTIONS)[number])) {
       const timer = window.setTimeout(() => {
         scrollToSection(initialHash, false);
       }, 0);
@@ -120,28 +138,39 @@ export default function LandingPage({
 
   return (
     <main className="landing-page dark bg-background-dark text-left text-text-primary">
-      <header className="border-b border-border-subtle bg-background-dark/80 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <p className="text-sm font-semibold tracking-wide text-text-secondary">NovaLaunch</p>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <PWAConnectionStatus />
-            <PWAInstallButton />
-            <NetworkToggle network={network} onNetworkChange={setNetwork} />
+      <header className="sticky top-0 z-20 border-b border-white/5 bg-transparent backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <a href={`#${LANDING_SECTION_IDS.hero}`} data-scroll-link="true" className="text-2xl font-semibold tracking-tight text-text-primary">
+            NovaLaunch
+          </a>
+          <nav aria-label="Primary" className="hidden items-center gap-8 md:flex">
+            <a href={`#${LANDING_SECTION_IDS.hero}`} data-scroll-link="true" className="text-lg text-text-secondary transition hover:text-primary">Home</a>
+            <a href={`#${LANDING_SECTION_IDS.features}`} data-scroll-link="true" className="text-lg text-text-secondary transition hover:text-primary">Features</a>
+            <a href={`#${LANDING_SECTION_IDS.howItWorks}`} data-scroll-link="true" className="text-lg text-text-secondary transition hover:text-primary">How It Works</a>
+            <a href={`#${LANDING_SECTION_IDS.faq}`} data-scroll-link="true" className="text-lg text-text-secondary transition hover:text-primary">FAQ</a>
+          </nav>
+          <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
             {wallet.connected && wallet.address ? (
               <WalletInfo wallet={wallet} onDisconnect={disconnect} />
             ) : (
-              <Button size="sm" onClick={() => void connect()} loading={isConnecting}>
+              <Button 
+                size="sm" 
+                onClick={handleConnect} 
+                loading={isConnecting}
+                className="bg-primary hover:bg-[#E63428]"
+              >
                 Connect Wallet
               </Button>
             )}
           </div>
         </div>
       </header>
-      <Hero />
-      <Features />
-      <HowItWorks />
-      <FAQ />
-      <Footer />
+      <Hero 
+        wallet={wallet}
+        connect={handleConnect}
+        disconnect={disconnect}
+        isConnecting={isConnecting}
+      />
     </main>
   );
 }

@@ -1,54 +1,69 @@
 import { LANDING_SECTION_IDS } from "./sectionIds";
-import { PillTag } from "./shared";
+import { Button } from "../../components/UI";
+import { WalletInfo } from "../../components/WalletConnect";
+import type { WalletState } from "../../types";
 
-export function Hero() {
+interface HeroProps {
+  wallet: WalletState;
+  connect: () => Promise<void>;
+  disconnect: () => void;
+  isConnecting: boolean;
+}
+
+export function Hero({ wallet, connect, disconnect, isConnecting }: HeroProps) {
   return (
-    <section id={LANDING_SECTION_IDS.hero} className="mx-auto grid max-w-7xl gap-10 px-4 pb-section-sm pt-section-sm sm:px-6 lg:grid-cols-2 lg:px-8 lg:pt-section">
-      <div>
-        <PillTag>Stellar Infrastructure</PillTag>
-        <h1 className="mt-4 text-display-lg tracking-tight text-text-primary lg:text-display-xl">
-          Launch production-ready Stellar assets in minutes.
+    <section id={LANDING_SECTION_IDS.hero} className="relative isolate overflow-hidden bg-hero-gradient min-h-screen flex items-center">
+      {/* Hero Content */}
+      <div className="mx-auto flex w-full max-w-5xl flex-col items-center px-6 py-20 text-center sm:px-8 lg:px-12">
+
+        {/* Headline */}
+        <h1 className="hero-headline mb-6 max-w-4xl animate-fade-in-up text-balance">
+          Launch Your Token on Stellar in Minutes
         </h1>
-        <p className="mt-5 max-w-xl text-base leading-7 text-text-secondary sm:text-lg">
-          Nova helps teams deploy tokens, manage metadata, and monitor transactions with a developer-first workflow.
+
+        {/* Description */}
+        <p className="mb-10 max-w-2xl animate-fade-in-up text-balance text-lg leading-relaxed text-gray-400 sm:text-xl">
+          Premium, secure, and effortless token deployment for founders, creators, and Web3 teams.
         </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <a
-            href="/deploy"
-            className="inline-flex h-11 items-center rounded-card bg-primary px-5 text-sm font-semibold text-text-primary transition hover:opacity-90 hover:shadow-glow-red"
-          >
-            Start deploying
-          </a>
+
+        {/* Social Proof */}
+        <div className="mb-10 flex animate-fade-in-up flex-col items-center gap-3">
+          <div className="flex items-center gap-2">
+            <div className="flex -space-x-2">
+              <div className="h-10 w-10 rounded-full border-2 border-gray-900 bg-gradient-to-br from-blue-400 to-blue-600"></div>
+              <div className="h-10 w-10 rounded-full border-2 border-gray-900 bg-gradient-to-br from-purple-400 to-purple-600"></div>
+              <div className="h-10 w-10 rounded-full border-2 border-gray-900 bg-gradient-to-br from-pink-400 to-pink-600"></div>
+            </div>
+            <span className="ml-2 text-3xl font-bold text-white">1,000+</span>
+          </div>
+          <p className="text-sm text-gray-400">
+            tokens deployed with 500+ active users
+          </p>
+        </div>
+
+        {/* CTA Buttons */}
+        <div className="flex animate-fade-in-up flex-col gap-4 sm:flex-row">
+          {wallet.connected && wallet.address ? (
+            <WalletInfo wallet={wallet} onDisconnect={disconnect} />
+          ) : (
+            <Button 
+              size="lg" 
+              onClick={connect}
+              loading={isConnecting}
+              className="inline-flex h-14 items-center justify-center rounded-xl bg-primary px-8 text-base font-semibold text-white transition hover:bg-[#E63428] hover:shadow-glow-red"
+            >
+              Connect Wallet
+            </Button>
+          )}
           <a
             href={`#${LANDING_SECTION_IDS.howItWorks}`}
             data-scroll-link="true"
-            className="inline-flex h-11 items-center rounded-card border border-border-medium bg-background-elevated px-5 text-sm font-semibold text-text-primary transition hover:border-primary/60"
+            className="inline-flex h-14 items-center justify-center rounded-xl border-2 border-white/20 bg-white/5 px-8 text-base font-semibold text-white backdrop-blur-sm transition hover:border-white/30 hover:bg-white/10"
           >
-            See how it works
+            Learn More
           </a>
         </div>
       </div>
-
-      <nav aria-label="Section navigation" className="rounded-card border border-border-medium bg-background-card p-5 shadow-card-hover">
-        <p className="text-sm font-semibold uppercase tracking-wide text-text-muted">Jump to section</p>
-        <ul className="mt-3 space-y-2 text-sm">
-          <li>
-            <a className="text-text-secondary hover:text-primary" href={`#${LANDING_SECTION_IDS.hero}`} data-scroll-link="true">Overview</a>
-          </li>
-          <li>
-            <a className="text-text-secondary hover:text-primary" href={`#${LANDING_SECTION_IDS.features}`} data-scroll-link="true">Features</a>
-          </li>
-          <li>
-            <a className="text-text-secondary hover:text-primary" href={`#${LANDING_SECTION_IDS.howItWorks}`} data-scroll-link="true">How it works</a>
-          </li>
-          <li>
-            <a className="text-text-secondary hover:text-primary" href={`#${LANDING_SECTION_IDS.faq}`} data-scroll-link="true">FAQ</a>
-          </li>
-          <li>
-            <a className="text-text-secondary hover:text-primary" href={`#${LANDING_SECTION_IDS.footer}`} data-scroll-link="true">Contact</a>
-          </li>
-        </ul>
-      </nav>
     </section>
   );
 }
