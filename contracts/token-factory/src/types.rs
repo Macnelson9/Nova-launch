@@ -75,8 +75,6 @@ pub struct TokenInfo {
     pub decimals: u32,
     pub total_supply: i128,
     pub initial_supply: i128,
-    pub total_burned: i128,
-    pub burn_count: u32,
     pub metadata_uri: Option<String>,
     pub created_at: u64,
     pub total_burned: i128,
