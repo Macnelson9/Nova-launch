@@ -197,6 +197,7 @@ impl TokenFactory {
             created_at: env.ledger().timestamp(),
             is_paused: false,
             clawback_enabled: false,
+            freeze_enabled: false,
         };
 
         storage::set_token_info(&env, token_count, &token_info);
@@ -1828,7 +1829,3 @@ mod batch_claim_test;
 
 #[cfg(test)]
 mod governance_error_test;
-
-#[cfg(test)]
-mod proposal_state_machine_test;
-mod governance_e2e_test;

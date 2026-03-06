@@ -86,6 +86,18 @@ pub struct TokenInfo {
     pub created_at: u64,
     pub is_paused: bool,
     pub clawback_enabled: bool,
+    pub freeze_enabled: bool,
+}
+
+/// Parameters for creating a new token
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenCreationParams {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u32,
+    pub initial_supply: i128,
+    pub metadata_uri: Option<String>,
 }
 
 /// Compact read-only snapshot of a token's current state.
@@ -163,6 +175,12 @@ pub struct FeeUpdate {
 /// * `TreasuryPolicy` - Treasury withdrawal policy
 /// * `WithdrawalPeriod` - Current withdrawal period tracking
 /// * `AllowedRecipient(Address)` - Whether address is allowed recipient
+/// * `StreamCount` - Total number of streams created
+/// * `Stream(u64)` - Stream info by ID
+/// * `NextStreamId` - Next available stream ID
+/// * `VoteSnapshot(u64)` - Vote snapshot by ID
+/// * `VoterWeight(u64, Address)` - Voter weight in snapshot (snapshot_id, voter)
+/// * `NextSnapshotId` - Next available snapshot ID
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum DataKey {
@@ -234,9 +252,6 @@ pub enum DataKey {
 /// * `ProposalNotExecutable` - Proposal cannot be executed in current state
 /// * `QuorumNotMet` - Proposal did not reach minimum quorum threshold
 /// * `AlreadyExecuted` - Proposal has already been executed
-/// * `InvalidStateTransition` - Attempted state transition is not allowed
-/// * `ProposalInTerminalState` - Cannot modify proposal in terminal state
-/// * `ProposalCancelled` - Proposal has been cancelled
 ///
 /// # Examples
 /// ```
@@ -289,11 +304,18 @@ pub enum Error {
     ProposalNotExecutable = 40,
     QuorumNotMet = 41,
     AlreadyExecuted = 42,
-    InvalidStateTransition = 43,
-    ProposalInTerminalState = 44,
-    ProposalCancelled = 45,
     CliffNotReached = 32,
-    InvalidSchedule = 33,  // Invalid time schedule (cliff outside valid bounds)
+    InvalidSchedule = 33,
+    ProposalNotFound = 34,
+    VotingNotStarted = 35,
+    VotingEnded = 36,
+    AlreadyVoted = 37,
+    PayloadTooLarge = 38,
+    InvalidTimeWindow = 39,
+    FreezeNotEnabled = 40,
+    AddressFrozen = 41,
+    AddressNotFrozen = 42,
+    StreamPaused = 43,
 }
 
 /// Type of pending change
@@ -385,7 +407,7 @@ pub enum ProposalState {
 /// * `executed_at` - Timestamp when proposal was executed (if applicable)
 /// * `cancelled_at` - Timestamp when proposal was cancelled (if applicable)
 #[contracttype]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Proposal {
     pub id: u64,
     pub proposer: Address,
