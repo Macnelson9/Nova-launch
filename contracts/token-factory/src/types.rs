@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use soroban_sdk::{contracterror, contracttype, Address, String, Vec};
+use soroban_sdk::{contracterror, contracttype, Address, Bytes, String, Vec};
 
 /// Factory state containing administrative configuration
 ///
@@ -71,8 +71,8 @@ pub struct ContractMetadata {
 /// ```
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Stream {
-    pub stream_id: String,
+pub struct TokenInfo {
+    pub address: Address,
     pub creator: Address,
     pub name: String,
     pub symbol: String,
@@ -85,6 +85,7 @@ pub struct Stream {
     pub metadata_uri: Option<String>,
     pub created_at: u64,
     pub is_paused: bool,
+    pub clawback_enabled: bool,
 }
 
 /// Compact read-only snapshot of a token's current state.
@@ -97,6 +98,17 @@ pub struct TokenStats {
     pub burn_count: u32,
     pub is_paused: bool,
     pub has_clawback: bool,
+}
+
+/// Parameters for token creation in single/batch flows.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TokenCreationParams {
+    pub name: String,
+    pub symbol: String,
+    pub decimals: u32,
+    pub initial_supply: i128,
+    pub metadata_uri: Option<String>,
 }
 
 /// Batch fee update structure for Phase 2 optimization
@@ -313,7 +325,7 @@ pub struct Proposal {
     pub id: u64,
     pub proposer: Address,
     pub action_type: ActionType,
-    pub payload: Vec<u8>,
+    pub payload: Bytes,
     pub start_time: u64,
     pub end_time: u64,
     pub eta: u64,
@@ -374,7 +386,7 @@ pub struct PaginationCursor {
 /// # Fields
 /// * `tokens` - Vector of token info for this page
 /// * `cursor` - Cursor for next page (None = no more results)
-// NOTE: Cannot be #[contracttype] because Option<PaginationCursor> is not serializable
+#[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PaginatedTokens {
     pub tokens: soroban_sdk::Vec<TokenInfo>,
@@ -476,4 +488,3 @@ pub struct TimelockConfig {
     pub delay_seconds: u64,
     pub enabled: bool,
 }
-

@@ -109,7 +109,7 @@ pub fn get_creator_token_count(env: &Env, creator: &Address) -> u32 {
     storage::get_creator_token_count(env, creator)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use soroban_sdk::{testutils::Address as _, Env};

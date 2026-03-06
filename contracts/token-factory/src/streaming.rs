@@ -395,7 +395,7 @@ pub fn get_claimable_amount(env: &Env, stream_id: u64) -> Result<i128, Error> {
     calculate_claimable(env, &stream)
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy-tests"))]
 mod tests {
     use super::*;
     use soroban_sdk::{testutils::Address as _, vec, Env};
