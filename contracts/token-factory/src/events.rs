@@ -477,3 +477,62 @@ pub fn emit_metadata_set(
         (admin.clone(), metadata_uri.clone()),
     );
 }
+
+/// Emit stream created event
+///
+/// Published when a new payment stream is created
+pub fn emit_stream_created(
+    env: &Env,
+    stream_id: u64,
+    creator: &Address,
+    recipient: &Address,
+    amount: i128,
+) {
+    env.events().publish(
+        (symbol_short!("strm_cr"),),
+        (stream_id, creator, recipient, amount),
+    );
+}
+
+/// Emit batch streams created event
+///
+/// Published when multiple streams are created in a batch
+pub fn emit_batch_streams_created(
+    env: &Env,
+    creator: &Address,
+    count: u32,
+) {
+    env.events().publish(
+        (symbol_short!("bch_strm"),),
+        (creator, count),
+    );
+}
+
+/// Emit stream claimed event
+///
+/// Published when tokens are claimed from a stream
+pub fn emit_stream_claimed(
+    env: &Env,
+    stream_id: u64,
+    recipient: &Address,
+    amount: i128,
+) {
+    env.events().publish(
+        (symbol_short!("strm_clm"),),
+        (stream_id, recipient, amount),
+    );
+}
+
+/// Emit stream cancelled event
+///
+/// Published when a stream is cancelled by creator
+pub fn emit_stream_cancelled(
+    env: &Env,
+    stream_id: u64,
+    creator: &Address,
+) {
+    env.events().publish(
+        (symbol_short!("strm_cnl"),),
+        (stream_id, creator),
+    );
+}
