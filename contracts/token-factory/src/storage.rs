@@ -850,38 +850,25 @@ pub fn increment_stream_count(env: &Env) -> u32 {
 }
 
 /// Get stream info by ID
-pub fn get_stream(env: &Env, stream_id: u32) -> Option<crate::stream_types::StreamInfo> {
+pub fn get_stream(env: &Env, stream_id: u64) -> Option<crate::types::StreamInfo> {
     env.storage()
         .persistent()
         .get(&DataKey::Stream(stream_id))
 }
 
 /// Store stream info
-pub fn set_stream(env: &Env, stream_id: u32, stream: &crate::stream_types::StreamInfo) {
+pub fn set_stream(env: &Env, stream_id: u64, stream: &crate::types::StreamInfo) {
     env.storage()
         .persistent()
         .set(&DataKey::Stream(stream_id), stream);
 }
 
-/// Add stream to creator's index for pagination
-pub fn add_creator_stream(env: &Env, creator: &Address, stream_id: u32) {
-    let mut streams: soroban_sdk::Vec<u32> = env
-        .storage()
-        .persistent()
-        .get(&DataKey::StreamByCreator(creator.clone(), 0))
-        .unwrap_or(soroban_sdk::Vec::new(env));
-    
-    streams.push_back(stream_id);
-    
-    env.storage()
-        .persistent()
-        .set(&DataKey::StreamByCreator(creator.clone(), 0), &streams);
-}
-
-/// Get all stream IDs for a creator
-pub fn get_creator_streams(env: &Env, creator: &Address) -> soroban_sdk::Vec<u32> {
-    env.storage()
-        .persistent()
-        .get(&DataKey::StreamByCreator(creator.clone(), 0))
-        .unwrap_or(soroban_sdk::Vec::new(env))
+/// Get next stream ID
+pub fn get_next_stream_id(env: &Env) -> u64 {
+    let id = env.storage()
+        .instance()
+        .get(&DataKey::NextStreamId)
+        .unwrap_or(0_u64);
+    env.storage().instance().set(&DataKey::NextStreamId, &(id + 1));
+    id
 }
