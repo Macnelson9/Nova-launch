@@ -163,9 +163,8 @@ pub enum DataKey {
     Token(u32),
     Balance(u32, Address),
     BurnCount(u32),
-    TokenPaused(u32),      // NEW — token_index -> bool
     TokenPaused(u32),
-    TotalBurned(u32),   // NEW — cumulative burned amount per token
+    TotalBurned(u32),
     TokenByAddress(Address),
     Paused,
     TimelockConfig,
@@ -180,6 +179,7 @@ pub enum DataKey {
     StreamCount,                    // Total number of streams created
     Stream(u32),                    // Stream info by ID
     StreamByCreator(Address, u32),  // Index streams by creator for pagination
+    GovernanceConfig,               // Governance quorum and approval thresholds
 }
 
 /// Contract error codes
@@ -218,18 +218,6 @@ pub enum DataKey {
 #[contracterror]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
-    InsufficientFee     = 1,
-    Unauthorized        = 2,
-    InvalidParameters   = 3,
-    TokenNotFound       = 4,
-    MetadataAlreadySet  = 5,
-    AlreadyInitialized  = 6,
-    InsufficientBalance = 7,
-    ArithmeticError     = 8,
-    BatchTooLarge       = 9,
-    TokenPaused         = 10,  // NEW
-}
-    TokenPaused         = 10,
     InsufficientFee = 1,
     Unauthorized = 2,
     InvalidParameters = 3,
@@ -255,6 +243,22 @@ pub enum Error {
     InvalidBaseFee = 23,
     InvalidMetadataFee = 24,
     InconsistentTokenCount = 25,
+    TokenPaused = 26,
+}
+
+/// Governance configuration
+///
+/// Defines quorum and approval thresholds for governance operations.
+///
+/// # Fields
+/// * `quorum_percent` - Minimum participation percentage (0-100)
+/// * `approval_percent` - Minimum approval percentage (0-100)
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GovernanceConfig {
+    pub quorum_percent: u32,
+    pub approval_percent: u32,
+}
 
 /// Timelock configuration
 ///
@@ -310,6 +314,24 @@ pub struct PendingChange {
     pub metadata_fee: Option<i128>,
     pub paused: Option<bool>,
     pub treasury: Option<Address>,
+}
+
+/// Governance proposal
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Proposal {
+    pub id: u64,
+    pub proposer: Address,
+    pub action: ActionType,
+    pub description: String,
+    pub created_at: u64,
+    pub voting_ends_at: u64,
+    pub execution_delay: u64,
+    pub votes_for: i128,
+    pub votes_against: i128,
+    pub votes_abstain: i128,
+    pub executed: bool,
+    pub cancelled: bool,
 }
 
 /// Pagination cursor for token queries

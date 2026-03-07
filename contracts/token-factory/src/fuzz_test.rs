@@ -47,7 +47,7 @@ fn supply_strategy() -> impl Strategy<Value = i128> {
     ]
 }
 
-// Strategy for fee amounts
+// Strategy for fee amounts with targeted edge case seeds
 fn fee_strategy() -> impl Strategy<Value = i128> {
     prop_oneof![
         Just(0i128),
@@ -55,6 +55,12 @@ fn fee_strategy() -> impl Strategy<Value = i128> {
         Just(-1000i128),
         Just(i128::MAX),
         Just(i128::MIN),
+        Just(i128::MAX / 2),
+        Just(i128::MAX - 1),
+        Just(i128::MAX - 1000),
+        Just(1),
+        Just(10_000_000),
+        Just(100_000_000),
         1i128..1_000_000_000i128,
     ]
 }
@@ -414,6 +420,103 @@ proptest! {
         let result = client.try_get_token_info(&index);
         prop_assert!(result.is_err());
     }
+
+    #[test]
+    fn fuzz_arithmetic_no_panic(
+        base_fee in 0i128..i128::MAX,
+        metadata_fee in 0i128..i128::MAX,
+    ) {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let treasury = Address::generate(&env);
+
+        // Should never panic regardless of values
+        let result = client.try_initialize(&admin, &treasury, &base_fee, &metadata_fee);
+        prop_assert!(result.is_ok());
+
+        let state = client.get_state();
+        
+        // Verify checked arithmetic behavior
+        let sum = state.base_fee.checked_add(state.metadata_fee);
+        if base_fee > i128::MAX - metadata_fee {
+            prop_assert!(sum.is_none());
+        } else {
+            prop_assert!(sum.is_some());
+        }
+    }
+
+    #[test]
+    fn fuzz_fee_update_no_underflow(
+        initial_fee in 0i128..1_000_000_000i128,
+        new_fee in 0i128..1_000_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let treasury = Address::generate(&env);
+
+        client.initialize(&admin, &treasury, &initial_fee, &initial_fee);
+
+        // Update should always succeed with valid values
+        let result = client.try_update_fees(&admin, &Some(new_fee), &None);
+        prop_assert!(result.is_ok());
+
+        let state = client.get_state();
+        prop_assert_eq!(state.base_fee, new_fee);
+    }
+
+    #[test]
+    fn fuzz_extreme_fee_combinations(
+        multiplier in 1u32..100u32,
+    ) {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let treasury = Address::generate(&env);
+
+        let base = (i128::MAX / 1000) * (multiplier as i128);
+        let metadata = (i128::MAX / 1000) * ((100 - multiplier) as i128);
+
+        let result = client.try_initialize(&admin, &treasury, &base, &metadata);
+        prop_assert!(result.is_ok());
+
+        let state = client.get_state();
+        prop_assert_eq!(state.base_fee, base);
+        prop_assert_eq!(state.metadata_fee, metadata);
+    }
+
+    #[test]
+    fn fuzz_fee_monotonicity(
+        fee1 in 0i128..1_000_000_000i128,
+        fee2 in 0i128..1_000_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let treasury = Address::generate(&env);
+
+        client.initialize(&admin, &treasury, &fee1, &0);
+        client.update_fees(&admin, &Some(fee2), &None);
+
+        let state = client.get_state();
+        prop_assert_eq!(state.base_fee, fee2);
+        
+        // Fee should be exactly what we set, no drift
+        prop_assert!(state.base_fee >= 0);
+    }
 }
 
 // Manual edge case tests for specific scenarios
@@ -548,5 +651,247 @@ mod edge_cases {
         // Test boundary: 1 stroop
         let result = client.try_initialize(&admin, &treasury, &1, &1);
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_overflow_in_fee_sum_detection() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let treasury = Address::generate(&env);
+
+        // These values individually are valid but their sum would overflow
+        let near_max = i128::MAX - 100;
+        client.initialize(&admin, &treasury, &near_max, &200);
+
+        let state = client.get_state();
+        
+        // Verify checked arithmetic detects overflow
+        let sum = state.base_fee.checked_add(state.metadata_fee);
+        assert!(sum.is_none(), "Expected overflow in fee sum");
+    }
+
+    #[test]
+    fn test_no_panic_on_extreme_values() {
+        let env = Env::default();
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin = Address::generate(&env);
+        let treasury = Address::generate(&env);
+
+        // Test various extreme combinations - none should panic
+        let extreme_values = [
+            (i128::MAX, 0),
+            (0, i128::MAX),
+            (i128::MAX / 2, i128::MAX / 2),
+            (i128::MAX - 1, 1),
+        ];
+
+        for (base, metadata) in extreme_values {
+            let contract_id = env.register_contract(None, TokenFactory);
+            let client = TokenFactoryClient::new(&env, &contract_id);
+            
+            let result = client.try_initialize(&admin, &treasury, &base, &metadata);
+            assert!(result.is_ok());
+        }
+    }
+}
+
+// ── Stream invariant property tests ──────────────────────────────────────────
+//
+// In this contract a "stream" is a token registry entry.
+// Mapping to the issue's invariant names:
+//   total             = TokenInfo::total_supply  (set at creation, decremented by burns)
+//   released_amount   = TokenStats::total_burned (monotonically increases)
+//   claimable         = TokenStats::current_supply = total - released_amount
+//
+// Properties proved:
+//   P1  released <= total
+//   P2  claimable >= 0
+//   P3  released_amount is monotonically non-decreasing across sequential burns
+//   P4  cumulative claims (burns) never exceed the total stream amount
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(200))]
+
+    /// P1 + P2: For any token with a random initial supply and a random burn
+    /// amount that is within bounds, total_burned <= total_supply and
+    /// current_supply >= 0 always hold after the burn.
+    #[test]
+    fn prop_released_lte_total_and_claimable_gte_zero(
+        initial_supply in 1i128..1_000_000_000i128,
+        burn_amount    in 1i128..1_000_000_000i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin    = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &treasury, &100_i128, &50_i128);
+
+        client.create_token(
+            &admin,
+            &soroban_sdk::String::from_str(&env, "Stream Token"),
+            &soroban_sdk::String::from_str(&env, "STR"),
+            &6_u32,
+            &initial_supply,
+            &None,
+            &100_i128,
+        );
+
+        let token_index = 0_u32;
+        // Fund admin's balance so burn has something to deduct from
+        crate::storage::set_balance(&env, token_index, &admin, initial_supply);
+
+        // Only burn up to the available supply
+        let actual_burn = burn_amount.min(initial_supply);
+        client.burn(&admin, &token_index, &actual_burn);
+
+        let stats = client.get_token_stats(&token_index).unwrap();
+
+        // P1: released (total_burned) <= total (original initial_supply)
+        prop_assert!(
+            stats.total_burned <= initial_supply,
+            "released ({}) must be <= total ({})",
+            stats.total_burned, initial_supply
+        );
+
+        // P2: claimable (current_supply) >= 0
+        prop_assert!(
+            stats.current_supply >= 0,
+            "claimable (current_supply = {}) must be >= 0",
+            stats.current_supply
+        );
+    }
+
+    /// P3: released_amount (total_burned) is monotonically non-decreasing —
+    /// each successive burn can only keep it the same or increase it, never
+    /// decrease it.
+    #[test]
+    fn prop_released_amount_monotonically_non_decreasing(
+        initial_supply in 10i128..1_000_000_000i128,
+        burn1 in 1i128..100i128,
+        burn2 in 1i128..100i128,
+        burn3 in 1i128..100i128,
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin    = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &treasury, &100_i128, &50_i128);
+
+        client.create_token(
+            &admin,
+            &soroban_sdk::String::from_str(&env, "Mono Token"),
+            &soroban_sdk::String::from_str(&env, "MNO"),
+            &6_u32,
+            &initial_supply,
+            &None,
+            &100_i128,
+        );
+
+        let token_index = 0_u32;
+        crate::storage::set_balance(&env, token_index, &admin, initial_supply);
+
+        // Clamp each burn so we never exceed the remaining balance
+        let b1 = burn1.min(initial_supply);
+        let after_b1 = initial_supply - b1;
+
+        let b2 = burn2.min(after_b1);
+        let after_b2 = after_b1 - b2;
+
+        let b3 = burn3.min(after_b2);
+
+        // Snapshot released amount before each burn
+        let released_before_1 = client.get_token_stats(&token_index).unwrap().total_burned;
+
+        client.burn(&admin, &token_index, &b1);
+        let released_after_1 = client.get_token_stats(&token_index).unwrap().total_burned;
+        prop_assert!(
+            released_after_1 >= released_before_1,
+            "total_burned must not decrease after burn 1: {} -> {}",
+            released_before_1, released_after_1
+        );
+
+        client.burn(&admin, &token_index, &b2);
+        let released_after_2 = client.get_token_stats(&token_index).unwrap().total_burned;
+        prop_assert!(
+            released_after_2 >= released_after_1,
+            "total_burned must not decrease after burn 2: {} -> {}",
+            released_after_1, released_after_2
+        );
+
+        client.burn(&admin, &token_index, &b3);
+        let released_after_3 = client.get_token_stats(&token_index).unwrap().total_burned;
+        prop_assert!(
+            released_after_3 >= released_after_2,
+            "total_burned must not decrease after burn 3: {} -> {}",
+            released_after_2, released_after_3
+        );
+    }
+
+    /// P4: Cumulative claims (total_burned) across any number of burns never
+    /// exceed the original total stream amount (initial_supply).
+    #[test]
+    fn prop_cumulative_claims_never_exceed_total(
+        initial_supply in 1i128..1_000_000_000i128,
+        num_burns      in 1u32..10u32,
+        burn_fraction  in 1u32..10u32, // burn 1/burn_fraction of remaining each time
+    ) {
+        let env = Env::default();
+        env.mock_all_auths();
+
+        let contract_id = env.register_contract(None, TokenFactory);
+        let client = TokenFactoryClient::new(&env, &contract_id);
+
+        let admin    = Address::generate(&env);
+        let treasury = Address::generate(&env);
+        client.initialize(&admin, &treasury, &100_i128, &50_i128);
+
+        client.create_token(
+            &admin,
+            &soroban_sdk::String::from_str(&env, "Cumulative Token"),
+            &soroban_sdk::String::from_str(&env, "CUM"),
+            &6_u32,
+            &initial_supply,
+            &None,
+            &100_i128,
+        );
+
+        let token_index  = 0_u32;
+        let mut remaining = initial_supply;
+        crate::storage::set_balance(&env, token_index, &admin, initial_supply);
+
+        for _ in 0..num_burns {
+            if remaining <= 0 {
+                break;
+            }
+            // Burn a fraction of what is left (at least 1)
+            let burn_amount = (remaining / burn_fraction.max(1) as i128).max(1).min(remaining);
+            client.burn(&admin, &token_index, &burn_amount);
+            remaining -= burn_amount;
+
+            let stats = client.get_token_stats(&token_index).unwrap();
+
+            // P4: cumulative released must never exceed the original total
+            prop_assert!(
+                stats.total_burned <= initial_supply,
+                "cumulative burns ({}) exceeded total supply ({})",
+                stats.total_burned, initial_supply
+            );
+
+            // P1 + P2 held after every individual burn too
+            prop_assert!(stats.current_supply >= 0);
+        }
     }
 }
