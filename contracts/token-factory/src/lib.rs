@@ -282,3 +282,6 @@ mod invariants;
 
 #[cfg(test)]
 mod invariant_tests;
+
+#[cfg(test)]
+mod pagination_stress_test;
