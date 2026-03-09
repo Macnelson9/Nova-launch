@@ -522,6 +522,8 @@ pub fn emit_vault_created(
     );
 }
 
+<<<<<<< governance-property-tests
+=======
 /// Emit vault claimed event
 ///
 /// Published when a vault owner claims unlocked tokens.
@@ -707,3 +709,4 @@ pub fn emit_stream_metadata_updated(
         (updater, has_metadata),
     );
 }
+>>>>>>> main
