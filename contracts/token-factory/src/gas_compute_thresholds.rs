@@ -1,5 +1,4 @@
 #![cfg(test)]
-extern crate std;
 
 //! # Gas Compute Thresholds — `gas_compute_thresholds.rs`
 //!
@@ -18,6 +17,8 @@ extern crate std;
 //! - `get_token_count` — registry count query
 //! - `is_paused` — pause state query
 //!
+
+extern crate std;
 //! ## Threshold Update Policy
 //!
 //! Thresholds may ONLY be raised via a PR that includes ALL of the following:
