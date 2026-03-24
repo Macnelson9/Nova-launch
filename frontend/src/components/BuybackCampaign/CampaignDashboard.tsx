@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { ExecuteStepButton } from './ExecuteStepButton';
 import { StellarService } from '../../services/stellar.service';
 import { mapBuybackCampaign } from '../../services/mappers/buybackCampaignMapper';
-import type { BuybackCampaignModel } from '../../types/campaign';
+import type { BuybackCampaignModel, BuybackStepModel } from '../../types/campaign';
+
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? '';
 
 interface CampaignDashboardProps {
   campaignId: number;
@@ -20,9 +22,46 @@ export const CampaignDashboard: React.FC<CampaignDashboardProps> = ({
   const fetchCampaign = async () => {
     try {
       setLoading(true);
-      const service = new StellarService(network);
-      const raw = await service.getBuybackCampaign(campaignId);
-      setCampaign(mapBuybackCampaign(raw));
+
+      // Prefer backend step data; fall back to chain read if unavailable
+      const backendRes = await fetch(
+        `${BACKEND_URL}/api/buyback/campaigns/${campaignId}/steps`
+      ).catch(() => null);
+
+      if (backendRes?.ok) {
+        const { steps } = await backendRes.json() as {
+          steps: Array<{
+            id: number;
+            stepNumber: number;
+            amount: string;
+            status: 'PENDING' | 'COMPLETED' | 'FAILED';
+            executedAt?: string;
+            txHash?: string;
+          }>;
+          pagination: { total: number; limit: number; offset: number };
+        };
+
+        // Also fetch campaign header from chain for live status/amounts
+        const service = new StellarService(network);
+        const raw = await service.getBuybackCampaign(campaignId);
+        const base = mapBuybackCampaign({ ...raw, steps: [] });
+
+        const mappedSteps: BuybackStepModel[] = steps.map((s) => ({
+          id: s.id,
+          stepNumber: s.stepNumber,
+          amount: s.amount,
+          status: s.status,
+          executedAt: s.executedAt,
+          txHash: s.txHash,
+        }));
+
+        setCampaign({ ...base, steps: mappedSteps });
+      } else {
+        // Full chain read fallback
+        const service = new StellarService(network);
+        const raw = await service.getBuybackCampaign(campaignId);
+        setCampaign(mapBuybackCampaign(raw));
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
