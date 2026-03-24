@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { DeploymentResult, TokenDeployParams, WalletState } from '../../types';
 import { useTokenDeploy } from '../../hooks/useTokenDeploy';
+import { useFactoryFees } from '../../hooks/useFactoryFees';
+import { getDeploymentFeeBreakdown } from '../../utils/feeCalculation';
 import { useFactoryState } from '../../hooks/useFactoryState';
 import { formatXLM, truncateAddress } from '../../utils/formatting';
 import { BasicInfoStep, type BasicInfoData } from './BasicInfoStep';
@@ -29,6 +31,11 @@ export function TokenDeployForm({
     const [localError, setLocalError] = useState<string | null>(null);
     const [result, setResult] = useState<DeploymentResult | null>(null);
 
+    const { baseFee, metadataFee, loading: feesLoading, error: feesError, isFallback, refresh: refreshFees } =
+        useFactoryFees(wallet.network);
+
+    const { deploy, reset, status, statusMessage, isDeploying, error } =
+        useTokenDeploy(wallet.network, { baseFee, metadataFee });
     const { deploy, reset, status, statusMessage, isDeploying, error, getFeeBreakdown } =
         useTokenDeploy(wallet.network);
     
@@ -37,8 +44,8 @@ export function TokenDeployForm({
 
     const hasMetadataInput = Boolean(metadataDescription.trim() || metadataImage);
     const feeBreakdown = useMemo(
-        () => getFeeBreakdown(hasMetadataInput),
-        [getFeeBreakdown, hasMetadataInput]
+        () => getDeploymentFeeBreakdown(hasMetadataInput, baseFee, metadataFee),
+        [hasMetadataInput, baseFee, metadataFee]
     );
 
     const handleBasicNext = (data: BasicInfoData) => {
@@ -267,7 +274,15 @@ export function TokenDeployForm({
                 </div>
             </div>
 
-            <FeeDisplay feeBreakdown={feeBreakdown} hasMetadata={hasMetadataInput} />
+            <FeeDisplay
+                feeBreakdown={feeBreakdown}
+                hasMetadata={hasMetadataInput}
+                network={wallet.network}
+                loading={feesLoading}
+                error={feesError}
+                isFallback={isFallback}
+                onRetry={refreshFees}
+            />
 
             {status === 'error' && error ? (
                 <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">

@@ -453,6 +453,36 @@ export class StellarService {
     }
   }
 
+  /** Read base_fee and metadata_fee from the factory contract via simulation. Returns values in XLM. */
+  async getContractFees(): Promise<{ baseFee: number; metadataFee: number }> {
+    const contract = new Contract(STELLAR_CONFIG.factoryContractId);
+    // Use a throw-away keypair as source — simulation doesn't require a funded account
+    const dummyKeypair = Keypair.random();
+    const dummyAccount = new Account(dummyKeypair.publicKey(), '0');
+
+    const simulate = async (method: string): Promise<number> => {
+      const tx = new TransactionBuilder(dummyAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: this.networkPassphrase,
+      })
+        .addOperation(contract.call(method))
+        .setTimeout(30)
+        .build();
+      const result = await this.server.simulateTransaction(tx);
+      if (Soroban.Api.isSimulationSuccess(result) && result.result) {
+        const stroops = Number(scValToNative(result.result.retval));
+        return stroops / 10_000_000; // convert stroops → XLM
+      }
+      throw new Error(`Failed to read ${method} from contract`);
+    };
+
+    const [baseFee, metadataFee] = await Promise.all([
+      simulate('get_base_fee'),
+      simulate('get_metadata_fee'),
+    ]);
+    return { baseFee, metadataFee };
+  }
+
   async getTokenBalance(tokenAddress: string, accountAddress: string): Promise<string> {
     try {
       const contract = new Contract(tokenAddress);

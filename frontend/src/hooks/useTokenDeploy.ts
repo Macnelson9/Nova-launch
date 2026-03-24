@@ -26,10 +26,12 @@ const STATUS_MESSAGES: Record<DeploymentStatus, string> = {
 interface UseTokenDeployOptions {
     maxRetries?: number;
     retryDelay?: number;
+    baseFee?: number;
+    metadataFee?: number;
 }
 
 export function useTokenDeploy(network: 'testnet' | 'mainnet', options: UseTokenDeployOptions = {}) {
-    const { maxRetries = 3, retryDelay = 2000 } = options;
+    const { maxRetries = 3, retryDelay = 2000, baseFee, metadataFee } = options;
     const [status, setStatus] = useState<DeploymentStatus>('idle');
     const [error, setError] = useState<AppError | null>(null);
     const [retryCount, setRetryCount] = useState(0);
@@ -252,7 +254,6 @@ export function useTokenDeploy(network: 'testnet' | 'mainnet', options: UseToken
         error,
         retryCount,
         canRetry: retryCount < maxRetries && lastParams !== null && status === 'error',
-        getFeeBreakdown: getDeploymentFeeBreakdown,
     };
 }
 
