@@ -12,6 +12,7 @@ import { StellarService } from '../services/stellar.service';
 import { TransactionHistoryStorage } from '../services/TransactionHistoryStorage';
 import { IPFSService } from '../services/IPFSService';
 import { StellarService } from '../services/stellar.service';
+import { TransactionHistoryStorage } from '../services/TransactionHistoryStorage';
 import { getDeploymentFeeBreakdown } from '../utils/feeCalculation';
 import { analytics, AnalyticsEvent } from '../services/analytics';
 import { useAnalytics } from './useAnalytics';
@@ -161,9 +162,9 @@ export function useTokenDeploy(network: 'testnet' | 'mainnet', options: UseToken
         }
 
         try {
-            const feeBreakdown = getDeploymentFeeBreakdown(Boolean(metadataUri), baseFee, metadataFee);
+            const feeBreakdown = getDeploymentFeeBreakdown(Boolean(metadataUri));
             const feePayment = BigInt(Math.round(feeBreakdown.totalFee * 10_000_000));
-            const serviceResult = await stellarService.deployToken({
+            const result = await stellarService.deployToken({
                 ...params,
                 metadataUri,
                 creatorAddress: params.adminWallet,
