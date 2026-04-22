@@ -2210,7 +2210,7 @@ mod gas_regression_test;
 mod gas_compute_thresholds;
 
 #[cfg(test)]
-// mod timelock_test;
+mod bench_test;
 
 #[cfg(test)]
 // mod pagination_integration_test;
